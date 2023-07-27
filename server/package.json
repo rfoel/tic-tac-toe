@@ -1,0 +1,20 @@
+{
+  "name": "server",
+  "type": "module",
+  "scripts": {
+    "deploy": "serverless deploy --verbose --stage prod"
+  },
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.378.0",
+    "@aws-sdk/client-dynamodb": "^3.378.0",
+    "@aws-sdk/client-sqs": "^3.378.0",
+    "@aws-sdk/lib-dynamodb": "^3.378.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.119",
+    "esbuild": "^0.17.19",
+    "serverless": "^3.33.0",
+    "serverless-esbuild": "^1.46.0",
+    "serverless-output-to-env": "^1.0.2"
+  }
+}

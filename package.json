@@ -1,0 +1,17 @@
+{
+  "name": "tic-tac-toe",
+  "version": "0.0.0",
+  "private": true,
+  "author": "Rafael Franco",
+  "license": "MIT",
+  "scripts": {
+    "deploy": "./scripts/deploy.sh"
+  },
+  "workspaces": [
+    "app",
+    "server"
+  ],
+  "devDependencies": {
+    "typescript": "^5.1.6"
+  }
+}

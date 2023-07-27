@@ -1,0 +1,186 @@
+service: tic-tac-toe
+
+frameworkVersion: '3'
+
+provider:
+  architecture: arm64
+  logRetentionInDays: 1
+  name: aws
+  region: us-east-1
+  runtime: nodejs18.x
+  stage: ${opt:stage}
+  timeout: 20
+  versionFunctions: false
+  environment:
+    QUEUE_URL: !Ref TicTacToeMatcherQueue
+    TABLE_NAME: !Ref TicTacToeTable
+    WEBSOCKET_ENDPOINT: ${cf:${self:service}-${opt:stage}.ServiceEndpointWebsocket}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+          Resource:
+            - !Join ['/', [!GetAtt TicTacToeTable.Arn]]
+            - !Join ['/', [!GetAtt TicTacToeTable.Arn, '*']]
+
+plugins:
+  - serverless-esbuild
+  - serverless-output-to-env
+
+custom:
+  outputToEnv:
+    fileName: ../.env
+    map:
+      BUCKET_NAME: AppS3BucketName
+      WEBSOCKET_ENDPOINT: ServiceEndpointWebsocket
+      CLOUDFRONT_DISTRIBUTION: AppCloudFrontDistributionKey
+
+functions:
+  websocket:
+    handler: functions/websocket/index.handler
+    events:
+      - websocket:
+          route: $connect
+      - websocket:
+          route: $default
+      - websocket:
+          route: $disconnect
+      - websocket:
+          route: markSquare
+      - websocket:
+          route: matchMaker
+
+resources:
+  Resources:
+    TicTacToeTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: pk
+            AttributeType: S
+          - AttributeName: sk
+            AttributeType: S
+        KeySchema:
+          - AttributeName: pk
+            KeyType: HASH
+          - AttributeName: sk
+            KeyType: RANGE
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+
+    TicTacToeMatcherQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        VisibilityTimeout: 20
+        ReceiveMessageWaitTimeSeconds: 20
+        MessageRetentionPeriod: 3600
+
+    AppS3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+
+    AppS3BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref AppS3Bucket
+        PolicyDocument:
+          Statement:
+            - Action: s3:GetObject
+              Effect: Allow
+              Resource: !Join ['/', [!GetAtt AppS3Bucket.Arn, '*']]
+              Principal:
+                Service: cloudfront.amazonaws.com
+              Condition:
+                StringEquals:
+                  AWS:SourceArn:
+                    !Join [
+                      '',
+                      [
+                        'arn:aws:cloudfront::${aws:accountId}:distribution/',
+                        !Ref AppCloudFrontDistribution,
+                      ],
+                    ]
+
+    AppCloudFrontOriginAccessControl:
+      Type: AWS::CloudFront::OriginAccessControl
+      Properties:
+        OriginAccessControlConfig:
+          Name: ${self:service}-${self:provider.stage} OriginAccessControl
+          OriginAccessControlOriginType: s3
+          SigningBehavior: always
+          SigningProtocol: sigv4
+
+    AppCloudFrontDistribution:
+      Type: AWS::CloudFront::Distribution
+      DependsOn:
+        - AppS3Bucket
+      Properties:
+        DistributionConfig:
+          Origins:
+            - Id: App
+              DomainName: !GetAtt AppS3Bucket.DomainName
+              S3OriginConfig:
+                OriginAccessIdentity: ''
+              OriginAccessControlId: !GetAtt AppCloudFrontOriginAccessControl.Id
+
+          Enabled: true
+          Aliases:
+            - tic-tac-toe.rafaelfranco.com
+            - www.tic-tac-toe.rafaelfranco.com
+          DefaultRootObject: /index.html
+          CustomErrorResponses:
+            - ErrorCode: 403
+              ResponseCode: 200
+              ResponsePagePath: /index.html
+            - ErrorCode: 404
+              ResponseCode: 200
+              ResponsePagePath: /index.html
+          DefaultCacheBehavior:
+            AllowedMethods:
+              - DELETE
+              - GET
+              - HEAD
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            TargetOriginId: App
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # CachingOptimized
+            OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf # CORS-S3Origin
+            ViewerProtocolPolicy: redirect-to-https
+          ViewerCertificate:
+            AcmCertificateArn: ${ssm:/tic-tac-toe/acmCertificateArn}
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+
+  Outputs:
+    AppS3BucketName:
+      Value:
+        Ref: AppS3Bucket
+    AppCloudFrontDistributionKey:
+      Value:
+        Ref: AppCloudFrontDistribution
+    ServiceEndpointWebsocket:
+      Value:
+        !Join [
+          '',
+          [
+            'wss://',
+            !Ref 'WebsocketsApi',
+            '.execute-api.${aws:region}.',
+            !Ref 'AWS::URLSuffix',
+            '/${opt:stage}',
+          ],
+        ]
