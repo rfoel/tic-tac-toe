@@ -1,10 +1,10 @@
 #!/bin/bash
 
-export $(grep -v '^#' .env | xargs)
-
 npm install
 
 npm run deploy -w server
+
+export $(grep -v '^#' .env | xargs)
 
 npm run build -w app
 
