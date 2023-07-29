@@ -7,6 +7,7 @@ npm run deploy -w server
 export $(grep -v '^#' .env | xargs)
 
 PACKAGE_VERSION=$(node -p -e "require('./package.json').version")
+echo '' >> .env
 echo VITE_PACKAGE_VERSION=${PACKAGE_VERSION} >> .env
 touch app/.env
 cp .env app/.env
