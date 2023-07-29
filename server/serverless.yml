@@ -20,13 +20,22 @@ provider:
       statements:
         - Effect: Allow
           Action:
-            - dynamodb:Query
+            - dynamodb:DeleteItem
             - dynamodb:GetItem
             - dynamodb:PutItem
+            - dynamodb:Query
             - dynamodb:UpdateItem
           Resource:
             - !Join ['/', [!GetAtt TicTacToeTable.Arn]]
             - !Join ['/', [!GetAtt TicTacToeTable.Arn, '*']]
+
+        - Effect: Allow
+          Action:
+            - sqs:DeleteMessage
+            - sqs:ReceiveMessage
+            - sqs:SendMessage
+          Resource:
+            - !GetAtt TicTacToeMatcherQueue.Arn
 
 plugins:
   - serverless-esbuild
@@ -37,8 +46,8 @@ custom:
     fileName: ../.env
     map:
       BUCKET_NAME: AppS3BucketName
-      WEBSOCKET_ENDPOINT: ServiceEndpointWebsocket
       CLOUDFRONT_DISTRIBUTION: AppCloudFrontDistributionKey
+      WEBSOCKET_ENDPOINT: ServiceEndpointWebsocket
 
 functions:
   websocket:
@@ -53,7 +62,7 @@ functions:
       - websocket:
           route: markSquare
       - websocket:
-          route: matchMaker
+          route: requestGame
 
 resources:
   Resources:
@@ -138,7 +147,6 @@ resources:
           Enabled: true
           Aliases:
             - tic-tac-toe.rafaelfranco.com
-            - www.tic-tac-toe.rafaelfranco.com
           DefaultRootObject: /index.html
           CustomErrorResponses:
             - ErrorCode: 403
@@ -165,6 +173,61 @@ resources:
             SslSupportMethod: sni-only
             MinimumProtocolVersion: TLSv1.2_2021
 
+    WebsocketDomainName:
+      Type: AWS::ApiGatewayV2::DomainName
+      DependsOn:
+        - WebsocketsApi
+      Properties:
+        DomainName: ws.tic-tac-toe.rafaelfranco.com
+        DomainNameConfigurations:
+          - EndpointType: 'REGIONAL'
+            CertificateArn: ${ssm:/tic-tac-toe/acmCertificateArn}
+
+    WebSocketMapping:
+      Type: AWS::ApiGatewayV2::ApiMapping
+      DependsOn:
+        - WebsocketsDeploymentStage
+      Properties:
+        ApiId: !Ref WebsocketsApi
+        DomainName: !Ref WebsocketDomainName
+        Stage: prod
+
+    WebsocketARecord:
+      Type: AWS::Route53::RecordSet
+      DependsOn:
+        - WebsocketsApi
+      Properties:
+        HostedZoneId: ${ssm:/tic-tac-toe/hostedZoneId}
+        Name: ws.tic-tac-toe.rafaelfranco.com
+        Type: A
+        AliasTarget:
+          DNSName: !GetAtt WebsocketDomainName.RegionalDomainName
+          HostedZoneId: Z1UJRXOUMOOFQ8
+
+    AppARecord:
+      Type: AWS::Route53::RecordSet
+      DependsOn:
+        - AppCloudFrontDistribution
+      Properties:
+        HostedZoneId: ${ssm:/tic-tac-toe/hostedZoneId}
+        Name: tic-tac-toe.rafaelfranco.com
+        Type: A
+        AliasTarget:
+          DNSName: !GetAtt AppCloudFrontDistribution.DomainName
+          HostedZoneId: Z2FDTNDATAQYW2
+
+    AppAAAARecord:
+      Type: AWS::Route53::RecordSet
+      DependsOn:
+        - AppCloudFrontDistribution
+      Properties:
+        HostedZoneId: ${ssm:/tic-tac-toe/hostedZoneId}
+        Name: tic-tac-toe.rafaelfranco.com
+        Type: AAAA
+        AliasTarget:
+          DNSName: !GetAtt AppCloudFrontDistribution.DomainName
+          HostedZoneId: Z2FDTNDATAQYW2
+
   Outputs:
     AppS3BucketName:
       Value:
@@ -172,15 +235,3 @@ resources:
     AppCloudFrontDistributionKey:
       Value:
         Ref: AppCloudFrontDistribution
-    ServiceEndpointWebsocket:
-      Value:
-        !Join [
-          '',
-          [
-            'wss://',
-            !Ref 'WebsocketsApi',
-            '.execute-api.${aws:region}.',
-            !Ref 'AWS::URLSuffix',
-            '/${opt:stage}',
-          ],
-        ]

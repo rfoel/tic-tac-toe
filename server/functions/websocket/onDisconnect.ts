@@ -2,14 +2,20 @@ import db from '../../utils/db'
 import { sendMessage } from '../../utils/websocket'
 
 export default async (connectionId: string) => {
-  const gameResponse = await db.get({
+  const connection = await db.get({
     TableName: process.env.TABLE_NAME,
-    Key: { pk: `connection#${connectionId}` },
+    Key: { pk: `connection#${connectionId}`, sk: 'sk' },
     AttributesToGet: ['gameId'],
   })
 
-  if (gameResponse.Item) {
-    const { players, sk, state } = gameResponse.Item
+  if (connection.Item.gameId) {
+    const { Item } = await db.get({
+      TableName: process.env.TABLE_NAME,
+      Key: { pk: `connection#${connectionId}`, sk: 'sk' },
+      AttributesToGet: ['gameId'],
+    })
+
+    const { pk, players, sk, state } = Item
 
     if (!state.gameOver) {
       const remainingPlayer =
@@ -26,7 +32,7 @@ export default async (connectionId: string) => {
       await db.update({
         TableName: process.env.TABLE_NAME,
         Key: {
-          pk: `game#${gameResponse.Item.gameId}`,
+          pk,
           sk,
         },
         UpdateExpression:
@@ -48,6 +54,7 @@ export default async (connectionId: string) => {
     TableName: process.env.TABLE_NAME,
     Key: {
       pk: 'connections',
+      sk: 'sk',
     },
     UpdateExpression: 'SET #n = if_not_exists(#n, :start) - :decrement',
     ExpressionAttributeNames: {
@@ -64,6 +71,7 @@ export default async (connectionId: string) => {
     TableName: process.env.TABLE_NAME,
     Key: {
       pk: `connection#${connectionId}`,
+      sk: 'sk',
     },
   })
 }

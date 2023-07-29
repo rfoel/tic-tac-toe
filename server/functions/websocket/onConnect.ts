@@ -5,6 +5,7 @@ export default async (connectionId: string) => {
     TableName: process.env.TABLE_NAME,
     Item: {
       pk: `connection#${connectionId}`,
+      sk: 'sk',
       connected: new Date().toISOString(),
     },
     ConditionExpression: 'attribute_not_exists(pk)',
@@ -14,6 +15,7 @@ export default async (connectionId: string) => {
     TableName: process.env.TABLE_NAME,
     Key: {
       pk: 'connections',
+      sk: 'sk',
     },
     UpdateExpression: 'SET #n = if_not_exists(#n, :start) + :increment',
     ExpressionAttributeNames: {

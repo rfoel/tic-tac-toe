@@ -53,14 +53,14 @@ const checkForWin = (marker: Marker, board: Board) => {
     ],
   ]
 
-  return conditions.some(condition =>
+  return conditions.some((condition) =>
     condition.every(([x, y]) => board[x][y] === marker),
   )
 }
 
 const checkForDraw = (board: Board) => {
-  return board.every(row => {
-    return row.every(square => {
+  return board.every((row) => {
+    return row.every((square) => {
       return square !== ''
     })
   })
@@ -71,6 +71,7 @@ const updateGameWinner = async (pk: string, winner: string) => {
     TableName: process.env.TABLE_NAME,
     Key: {
       pk,
+      sk: 'sk',
     },
     UpdateExpression:
       'SET #state.#winner = :winner, #state.#gameOver = :gameOver',
@@ -98,7 +99,7 @@ export default async (
 ) => {
   const response = await db.get({
     TableName: process.env.TABLE_NAME,
-    Key: { pk: `game#${gameId}` },
+    Key: { pk: `game#${gameId}`, sk: 'sk' },
   })
 
   const game = response.Item
@@ -161,6 +162,7 @@ export default async (
     TableName: process.env.TABLE_NAME,
     Key: {
       pk: game.pk,
+      sk: 'sk',
     },
     UpdateExpression:
       'SET #state.#board = :board, #state.#whosTurn = :whosTurn',

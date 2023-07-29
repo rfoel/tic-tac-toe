@@ -6,7 +6,7 @@ import {
 import onConnect from './onConnect'
 import onDisconnect from './onDisconnect'
 import onMarkSquare from './onMarkSquare'
-import onMatchMaker from './onMatchMaker'
+import onRequestGame from './onRequestGame'
 
 const parseBody = (body: APIGatewayProxyWebsocketEventV2['body']) => {
   try {
@@ -24,15 +24,19 @@ const actions = {
   $connect: onConnect,
   $disconnect: onDisconnect,
   markSquare: onMarkSquare,
-  matchMaker: onMatchMaker,
+  requestGame: onRequestGame,
 }
 
-export const handler: APIGatewayProxyWebsocketHandlerV2 = async event => {
-  if (event.requestContext) {
-    const { connectionId, routeKey } = event.requestContext
-    const body = parseBody(event.body)
-    if (actions[routeKey]) await actions[routeKey](connectionId, body)
+export const handler: APIGatewayProxyWebsocketHandlerV2 = async (event) => {
+  try {
+    if (event.requestContext) {
+      const { connectionId, routeKey } = event.requestContext
+      const body = parseBody(event.body)
+      if (actions[routeKey]) await actions[routeKey](connectionId, body)
+    }
+  } catch (error) {
+    console.log(error)
+  } finally {
+    return {}
   }
-
-  return {}
 }

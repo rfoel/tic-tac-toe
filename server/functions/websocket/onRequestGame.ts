@@ -40,6 +40,7 @@ const isPlayerConnected = async (connectionId: string) => {
     TableName: process.env.TABLE_NAME,
     Key: {
       pk: `connection#${connectionId}`,
+      sk: 'sk',
     },
   })
   return Boolean(response.Item)
@@ -51,7 +52,7 @@ const createGame = async (
 ) => {
   const game = {
     pk: `game#${gameId}`,
-    sk: new Date().toISOString(),
+    sk: 'sk',
     ttl: Math.floor(Date.now() / 1000) + 60 * 60 * 24,
     players: {
       player1: {
@@ -88,11 +89,12 @@ const addGameToConnections = async (
   connectionIds: string[],
 ) => {
   await Promise.all(
-    connectionIds.map(id => {
+    connectionIds.map((id) => {
       return db.update({
         TableName: process.env.TABLE_NAME,
         Key: {
           pk: `connection#${id}`,
+          sk: 'sk',
         },
         UpdateExpression: 'SET gameId = :gameId',
         ExpressionAttributeValues: {
