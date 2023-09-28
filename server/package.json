@@ -5,7 +5,7 @@
     "deploy": "serverless deploy --verbose --stage prod"
   },
   "dependencies": {
-    "@aws-sdk/client-apigatewaymanagementapi": "^3.378.0",
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.421.0",
     "@aws-sdk/client-dynamodb": "^3.378.0",
     "@aws-sdk/client-sqs": "^3.378.0",
     "@aws-sdk/lib-dynamodb": "^3.378.0"
